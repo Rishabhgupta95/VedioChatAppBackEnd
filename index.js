@@ -11,20 +11,25 @@ io.on("connection", (socket) => {
   socket.on("room:join", (data) => {
     const { email, room } = data;
     
-    // Find existing user in the room BEFORE the current socket joins
+    // Check if the user is the first one in the room
     const existingUsers = io.sockets.adapter.rooms.get(room);
+    const isAdmin = !existingUsers || existingUsers.size === 0;
+    
+    let remoteSocketId = null;
+    let remoteEmail = null;
+
+    // Notify the newcomer about the existing user
     if (existingUsers && existingUsers.size > 0) {
-      const existingSocketId = Array.from(existingUsers)[0]; // 1-on-1 assume 1 person
-      const existingEmail = socketidToEmailMap.get(existingSocketId);
-      // Notify the newcomer about the existing user
-      socket.emit("user:joined", { email: existingEmail, id: existingSocketId });
+      remoteSocketId = Array.from(existingUsers)[0];
+      remoteEmail = socketidToEmailMap.get(remoteSocketId);
+      socket.emit("user:joined", { email: remoteEmail, id: remoteSocketId });
     }
 
     emailToSocketIdMap.set(email, socket.id);
     socketidToEmailMap.set(socket.id, email);
     io.to(room).emit("user:joined", { email, id: socket.id });
     socket.join(room);
-    io.to(socket.id).emit("room:join", data);
+    io.to(socket.id).emit("room:join", { ...data, isAdmin, remoteSocketId, remoteEmail });
   });
 
   socket.on("user:call", ({ to, offer }) => {
